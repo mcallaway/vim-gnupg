@@ -1,5 +1,5 @@
 " Name:    gnupg.vim
-" Last Change: 2011 Oct 18
+" Last Change: 2011 Nov 3
 " Maintainer:  James Vega <vega.james@gmail.com>
 " Original Author:  Markus Braun <markus.braun@krawel.de>
 " Summary: Vim plugin for transparent editing of gpg encrypted files.
@@ -89,6 +89,9 @@
 "     gnupg.  When set to 1, this can cause terminal-based gpg agents to not
 "     display correctly when prompting for passwords.  Defaults to 0.
 "
+"   g:GPGHomedir
+"     If set, --homedir argument is added to the gpg command.  Defaults to empty.
+"
 " Known Issues: {{{2
 "
 "   In some cases gvim can't decrypt files
@@ -127,6 +130,7 @@
 "   - Tim Swast for patch to generate signed files.
 "   - James Vega for patches for better '*.asc' handling, better filename
 "     escaping and better handling of multiple keyrings.
+"
 "
 " Section: Plugin header {{{1
 
@@ -237,6 +241,11 @@ function s:GPGInit()
     let g:GPGUsePipes = 0
   endif
 
+  " allow alternate gnupg homedir
+  if (!exists("g:GPGHomedir"))
+    let g:GPGHomedir = ''
+  endif
+
   " print version
   call s:GPGDebug(1, "gnupg.vim ". g:loaded_gnupg)
 
@@ -255,6 +264,11 @@ function s:GPGInit()
     let s:GPGCommand = g:GPGExecutable . " --use-agent"
   else
     let s:GPGCommand = g:GPGExecutable . " --no-use-agent"
+  endif
+
+  " provide alternate gnupg homedir
+  if !empty(g:GPGHomedir)
+    let s:GPGCommand = s:GPGCommand . " --homedir " . g:GPGHomedir
   endif
 
   " don't use tty in gvim except for windows: we get their a tty for free.
@@ -344,19 +358,15 @@ function s:GPGDecrypt()
   " get the filename of the current buffer
   let filename = expand("<afile>:p")
 
-  " clear GPGRecipients and GPGOptions
-  let b:GPGRecipients = g:GPGDefaultRecipients
-  let b:GPGOptions = []
-
   " File doesn't exist yet, so nothing to decrypt
   if empty(glob(filename))
     return
   endif
 
-  " Only let this if the file actually exists, otherwise GPG functionality
-  " will be disabled when editing a buffer that doesn't yet have a backing
-  " file
+  " clear GPGEncrypted, GPGRecipients and GPGOptions
   let b:GPGEncrypted = 0
+  let b:GPGRecipients = []
+  let b:GPGOptions = []
 
   " find the recipients of the file
   let commandline = s:GPGCommand . " --verbose --decrypt --list-only --dry-run --batch --no-use-agent --logger-fd 1 " . shellescape(filename)
@@ -573,7 +583,7 @@ function s:GPGEncrypt()
     return
   endif
 
-  call rename(destfile, resolve(expand('<afile>')))
+  call rename(destfile, expand('<afile>'))
   setl nomodified
   call s:GPGDebug(3, "<<<<<<<< Leaving s:GPGEncrypt()")
 endfunction
